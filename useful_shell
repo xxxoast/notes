@@ -1,0 +1,16 @@
+#awk
+echo "hello.world" | awk -F '.' '{print $NF}'
+#rename
+find . -type f -name "*.bat" | rename -v 's/bat/sh/'
+#dos2unix
+find . -type f | grep ".*\(sh\|py\|list\|ini\|config\|conf\)$" | xargs -I {} dos2unix {}
+#content replace
+find . -type f | xargs -I {} sed -i 's/\\/\//g' {}
+find . -type f | grep ".*\(sh\|py\|list\|ini\|config\|conf\)$" | xargs -I {} sed -i 's/\(E\|e\):\/winDataServer\/DataCenter/\/quant\/DataCenter/g' {}
+find . -type f | grep ".*\(sh\|py\|list\|ini\|config\|conf\)$" | xargs -I {} sed -i 's/\(E\|e\):\/winDataServer\/App/\/quant\/bin/g' {}
+find . -type f | grep ".*\(sh\|py\|list\|ini\|config\|conf\)$" | xargs -I {} sed -i 's/\(E\|e\):\/winDataServer\/config/\/quant\/config/g' {}
+find . -type f | grep ".*\(sh\|py\|list\|ini\|config\|conf\)$" | xargs -I {} sed -i 's/\(E\|e\):\/winDataServer/\/quant/g' {}
+find . -type f | grep ".*\(sh\|py\|list\|ini\|config\|conf\)$" | xargs -I {} sed -i 's/\(APP\|App\)/bin/g' {}
+find . -type f | grep ".*\(sh\|py\|list\|ini\|config\|conf\)$" | xargs -I {} sed -i 's/.exe//g' {}
+
+rsync -av . /media/xudi/xudi3/支付/

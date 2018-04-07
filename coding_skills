@@ -1,0 +1,12 @@
+2018.04.07 
+jinja2 with vue.js
+1.
+app.jinja_env.variable_start_string = '{{{{'
+app.jinja_env.variable_end_string = '}}}}'
+2.用 {% raw %} 和 {% endraw %} 隔离前端的template
+3.为了避免jinja2 与 vue 同时使用 “{{ }}”而发生冲突，vue 的数据绑定使用 v-text
+4.
+Vue.config.delimiters = ['[[', ']]']
+new Vue({
+  delimiters: ['[[', ']]']
+})
