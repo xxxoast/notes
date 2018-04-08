@@ -14,3 +14,4 @@ find . -type f | grep ".*\(sh\|py\|list\|ini\|config\|conf\)$" | xargs -I {} sed
 find . -type f | grep ".*\(sh\|py\|list\|ini\|config\|conf\)$" | xargs -I {} sed -i 's/.exe//g' {}
 
 rsync -av . /media/xudi/xudi3/支付/
+find . -type f | cut -d. -f3 | sort | uniq
