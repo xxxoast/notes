@@ -1,0 +1,256 @@
+================================深金结===================================
+'''
+SELECT 
+    case
+    when t.`2` like '是' then '电商平台'
+    else '一般商户'
+    end as '类别',
+    count(1) as '商户数',
+    sum(t.`6`) as '交易次数',
+    sum(t.`7`) as '交易金额'
+FROM
+    sz_fesc.merchant t
+GROUP BY t.`2`;
+
+SELECT count(1) as '消费次数',
+merchantname as '商户名',
+sum(suctrnmoney) as '交易金额',
+s.accountname as '收单行'
+FROM sz_fesc.all_trade
+left join
+    sz_fesc.settlement s
+on 
+    subnode = s.bankno
+WHERE
+    suctrnmoney > 0.1
+group by merchantname
+order by count(1) DESC;
+
+
+SELECT 
+    t.subnode as 'subnode',
+    sum(t.suctrnmoney) as '交易金额',
+    s.accountname as '开户名'
+FROM
+    sz_fesc.all_trade t
+left join
+    sz_fesc.settlement s
+on 
+    t.subnode = s.bankno
+WHERE
+    transtype = 101
+group by 
+    t.subnode
+order by 
+    sum(t.suctrnmoney)
+;
+
+'''
+
+'''
+SELECT 
+    DISTINCT(c.managment_name) as '一级商户名',
+    count(if(c.credit_count + c.credit_count_batch > 0.1,true,null)) as '深金结代收二级商户数',
+    count(if(c.debt_count + c.debt_count_batch > 0.1,true,null)) as '深金结代付二级商户数',
+    count(if(c.central_credit_count  > 0.1,true,null)) as '集代代收二级商户数',
+    count(if(c.central_debt_count  > 0.1,true,null)) as '集代代付二级商户数'
+FROM
+(
+    select 
+        * 
+    from 
+        sz_fesc.corp_summary c
+    where 
+        c.managment_name
+    in    (
+        SELECT 
+            name
+        FROM
+            sz_fesc.banks
+    )
+) c
+group by 
+    c.managment_name
+;
+'''
+
+'''
+SELECT 
+    DISTINCT(c.managment_name) as '一级商户名',
+    count(1) as '下挂二级商户数',
+    sum(c.credit_count) + sum(c.credit_count_batch) as '深金结代收笔数',
+    sum(c.credit_residual) + sum(c.credit_residual_batch) as '深金结代收余额',
+    sum(c.debt_count) + sum(c.debt_count_batch) as '深金结代付笔数',
+    sum(c.debt_residual) + sum(c.debt_residual_batch) as '深金结代付余额',
+    sum(c.central_credit_count) as '集代代收次数',
+    sum(c.central_credit_residual) as '集代代收余额',
+    sum(c.central_debt_count) as '集代代付次数',
+    sum(c.central_debt_residual) as '集代代付余额',
+    sum(c.income) as '业务收入'
+FROM
+(
+    select 
+        * 
+    from 
+        sz_fesc.corp_summary c
+    where 
+        c.managment_name
+    in    (
+        SELECT 
+            name
+        FROM
+            sz_fesc.banks
+    )
+) c
+group by 
+    c.managment_name
+;
+'''
+====================================平安银行====================================
+#1.filter trade 备付金对公司出金
+corp_credit = '''
+CREATE TABLE corp_cash_out AS
+SELECT *
+FROM 
+    pingan.reserve_trade_august 
+where
+    pingan.reserve_trade_august.opponent_account_name like '%公司%'
+AND
+    pingan.reserve_trade_august.direction = 'D'
+    ;
+'''
+
+### 2b 的连接表， 区分出金户的类型
+corp_cash_out = '''
+CREATE TABLE corp_cash_out AS
+SELECT t1.*,t2.account_type 'local_type'
+FROM 
+    pingan.reserve_trade_august t1
+left join 
+    pingan.pay_reserve_all_account t2 on 
+    t1.origin_account_number = t2.account_number
+where
+    t1.opponent_account_name like '%公司%'    
+AND
+    t1.direction = 'D'
+;
+'''
+
+### 2c 的连接表， 区分出金户的类型
+'''
+CREATE TABLE personcal_cash_out AS
+SELECT t1.*,t2.account_type 'local_type'
+FROM 
+    pingan.reserve_trade_august t1
+left join 
+    pingan.pay_reserve_all_account t2 on 
+    t1.origin_account_number = t2.account_number
+where
+    t1.opponent_account_name not like '%公司%'    
+AND
+    t1.direction = 'D'
+;
+'''
+
+### 收付户之间互转， 可以包含在收付户to b里边
+is_inter_exchange = '''
+SELECT * 
+FROM 
+    pingan.inter_reserve_cash_out_acctype
+where
+    remote_type != 0
+and 
+    local_type not like '存管%'
+;
+'''
+
+### 区分出入户的类型，获得出户类型
+reserve_inter_trans = '''
+CREATE TABLE inter_reserve_cash_out_acctype AS 
+SELECT 
+    t1.*,t3.account_type 'remote_type' 
+FROM  
+    pingan.corp_cash_out t1 
+left join 
+    pingan.reserve_third_bank t3 
+on  
+    t1.opponent_account_number = t3.account_number
+;  
+'''  
+
+###收付户2b跨行出金,不存在
+###汇缴户2b跨行出金,存在
+###此处应明确 汇缴户向行内,行间非存管、收付户出金违规
+###收付户需跨行才违规
+###收付户个人
+'''
+SELECT * FROM pingan.personcal_cash_out
+where 
+    local_type like '%收付%'
+and
+    opponent_bank_name not like '平安银行%'
+and 
+    opponent_account_name not like '%备付金%'
+;
+'''
+###汇缴户个人或机构
+'''
+SELECT * FROM pingan.corp_cash_out
+where 
+    local_type like '%汇缴%'
+and 
+    opponent_account_name not like '%备付金%'
+;
+'''
+
+#####==============================result=============================================
+#1.从平安提供的帐号看不存在非存管行互转
+'''
+# 看备付金互转
+create table inter_reserve_trans AS
+SELECT * 
+FROM 
+    pingan.inter_reserve_cash_out_acctype
+where 
+    opponent_account_name like '%备付%'
+group by 
+    origin_account_name,
+    opponent_account_name
+order by
+    origin_account_name
+;
+'''
+'''
+#查询开头的字母不一样
+SELECT * FROM pingan.inter_reserve_trans t
+where 
+    substring(t.origin_account_name,0,5) != substring(t.opponent_account_name,0,5)
+    ;
+'''
+
+'''
+SELECT 
+    *
+FROM
+    pingan.reserve_trade_august t1
+left join 
+    pingan.pay_reserve_all_account t2 on 
+    t1.origin_account_number = t2.account_number
+where
+    t1.direction = 'D'
+and
+    t1.opponent_account_number = 2620148
+;
+'''
++++++++++++++++++++++++++++++++++++pbc crawler++++++++++++++++++++++++++++++++++++++++++++
+SELECT 
+    *
+FROM
+    (SELECT 
+        city, COUNT(`index`) AS a, COUNT(DISTINCT (`index`)) AS b
+    FROM
+        punishment
+    GROUP BY city) newtb
+WHERE
+    a != b;
+
